@@ -245,15 +245,22 @@ def updateFile(operation, db, collection_name, update_file, name, method):
                         else:
                             print(f"Field '{update_field}' already exists and has the same value in document with stable_id: {value_to_match}. No update required.")
                     else:
-                        print(f"The document with '{field_to_match}': {value_to_match} is not in the collection.")
-                
+                        print(f"The document with '{field_to_match}': {value_to_match} is not in the collection. Creating new document.")
+                        
+                        # If the document doesn't exist, create a new one with the specified field and value                        
+                        temp_document = {
+                            field_to_match: value_to_match,
+                            update_field: new_value_list
+                        }
+                        collection.insert_one(temp_document)
+                        updates_made += 1
+
                 # Log the results of updates
                 if updates_made > 0:
                     print(f"Total number of updates made: {updates_made}.")
                 else:
                     log_functions.deleteLog(db, str(process_id))
-                    print(f"No changes were made.")
-                    
+                    print(f"No changes were made.")    
             else:
                 print(f"{f} is not a CSV file.")
         print("Updates finished!")
