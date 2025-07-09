@@ -245,15 +245,25 @@ def updateFile(operation, db, collection_name, update_file, name, method):
                         else:
                             print(f"Field '{update_field}' already exists and has the same value in document with stable_id: {value_to_match}. No update required.")
                     else:
-                        print(f"The document with '{field_to_match}': {value_to_match} is not in the collection. Creating new document.")
+                        print(f"The document with {field_to_match} {value_to_match} is not in the collection. Creating new document, new field and setting new value.")
                         
-                        # If the document doesn't exist, create a new one with the specified field and value                        
-                        temp_document = {
-                            field_to_match: value_to_match,
-                            update_field: new_value_list
-                        }
+                        # Initialize new document with the matching field
+                        temp_document = {field_to_match: value_to_match}
+
+                        # Create nested structure for the update_field
+                        keys = update_field.split(".")
+                        nested = temp_document
+                        for key in keys[:-1]:
+                            nested[key] = {}
+                            nested = nested[key]
+                        nested[keys[-1]] = new_value_list
+
                         collection.insert_one(temp_document)
                         updates_made += 1
+
+                        # Insert log for the new document
+                        updated_log = log_functions.updateLog(temp_document, process_id, operation, update_field, None, new_value_list)
+                        result = collection.update_one({field_to_match: value_to_match},{"$set": {"log": updated_log}})
 
                 # Log the results of updates
                 if updates_made > 0:

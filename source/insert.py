@@ -19,97 +19,124 @@ import os
 def insertDocuments(operation, db, collection_name, json_documents, name, method):
     """
     Insert one or multiple documents into a specific collection from a database.
-    The collection will be created if it doesn't exist.
-    Supports inserting from a single file or multiple files in a directory.
-    If there is already a document in the collection that matches the stable_id of a document, the function does not insert the duplicate document into the collection.
+    If the collection doesn't exist, it is created.
+    If a document with the same stable_id exists:
+        - If the document is identical, it is skipped.
+        - If it differs, new fields are merged into the existing document or the existing document is updated (overwritten) with the new fields.
+    Otherwise, the document is inserted as new.
     """
 
     total_inserted_documents = 0  # Counter for tracking total inserted documents
-    chunk_size = 10000 # Establishing the maximum number of embedded documents that a file can have before being split
+    total_updated_documents = 0  # Counter for tracking total updated documents
+    total_skipped_documents = 0  # Counter for tracking total skipped documents
+    chunk_size = 10000  # Maximum number of documents to insert in a batch
 
-    if os.path.exists(json_documents):  # Test if JSON file exists
-        # Check if the path is a file or a directory
+    if os.path.exists(json_documents):
+        # Determine if input is a single file or directory
         if os.path.isfile(json_documents):
-            json_files = [json_documents]  # Single file, put it in a list
+            json_files = [json_documents]
             print("There is 1 file to process.")
         elif os.path.isdir(json_documents):
-            # List all JSON files in the directory
             json_files = [os.path.join(json_documents, f) for f in os.listdir(json_documents) if os.path.isfile(os.path.join(json_documents, f)) and f.endswith('.json')]
             json_files = sorted(json_files, key=lambda s: [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', s)])
             print(f"There is/are {len(json_files)} file(s) to process.")
 
-        # Access the collection
+        # Access collection
         collection = db[collection_name]
-        print(f"Inserting file(s) into {collection_name} collection")     
+        print(f"Inserting file(s) into {collection_name} collection")
 
+        # Insert metadata about the update process in the log_details collection
+        process_id = log_functions.insertLog(db, name, method, operation, collection_name)
 
-        # Begin loop for each JSON file
+        # Loop through each file
         for json_file in json_files:
             print(f"Processing {json_file}")
 
-            # Read the JSON file
             with open(json_file) as f:
                 data = json.load(f)
 
             # Determine if data is a single document or a list of documents
-            if isinstance(data, list):
-                documents = data
-            else:
-                documents = [data]
+            documents = data if isinstance(data, list) else [data]
 
-            # Get the unique identifier for each document
-            unique_identifiers = [doc['stable_id'] for doc in documents]
 
-            # Find existing documents with the same identifiers
-            existing_documents = collection.find({'stable_id': {'$in': unique_identifiers}})
-            existing_identifiers = {doc['stable_id'] for doc in existing_documents}
+            # Ensure each document has a stable_id            
+            unique_ids = [doc['stable_id'] for doc in documents]
+            existing_docs_cursor = collection.find({'stable_id': {'$in': unique_ids}})
+            existing_docs = {doc['stable_id']: doc for doc in existing_docs_cursor}
 
-            # Filter out documents that are already in the collection
-            new_documents = [doc for doc in documents if doc['stable_id'] not in existing_identifiers]
+            new_documents = []
 
-            # Split the new documents into chunks
+            # Process each document            
+            for doc in documents:
+                stable_id = doc['stable_id']
+                # Check if the document already exists in the collection
+                if stable_id in existing_docs:
+                    existing = existing_docs[stable_id]
+                    # Compare full document contents excluding _id and log fields, the copy is just for comparison
+                    existing_copy = {k: v for k, v in existing.items() if k != '_id' and k != 'log'}
+                    if doc == existing_copy:
+                        print(f"Document with stable_id {stable_id} already exists and is identical. Skipping.")
+                        total_skipped_documents += 1
+                        continue
+
+                    # If the document exists but differs, merge the new document into the existing one
+                    print(f"Document with stable_id {stable_id} exists but differs. Overwriting.")
+                    merged_doc = existing.copy() # This is an exact copy of the existing document
+                    merged_doc.update(doc)  # Simple merge: new values overwrite old ones
+                    total_updated_documents += 1
+
+                    # Update log information in the existing document
+                    previous_document = existing
+                    existing_log = [] if previous_document is None else previous_document.get("log", [])
+
+                    # Prepare new log entry for overwritten document
+                    overwritten_log_entry = {
+                        "log_id": str(process_id),
+                        "operation": operation + "-overwrite"
+                    }
+
+                    # Add the new log entry to the existing log
+                    existing_log.insert(0, overwritten_log_entry)
+                    merged_doc['log'] = existing_log
+                    collection.update_one({'_id': existing['_id']}, {'$set': merged_doc})
+
+
+                # If the document does not exist, prepare it for insertion
+                else:
+                    new_documents.append(doc)
+
+            # Insert new documents in chunks
             if new_documents:
-                # Insert documents in chunks
                 for i in range(0, len(new_documents), chunk_size):
                     chunk = new_documents[i:i + chunk_size]
-
                     result = collection.insert_many(chunk)
                     inserted_ids = result.inserted_ids
-
-                    # Track total inserted documents across files
                     total_inserted_documents += len(inserted_ids)
 
+                    # If there are inserted documents, prepare log entries
                     if inserted_ids:
-                        # Get the ObjectId of the inserted process document
-                        process_id = log_functions.insertLog(db, name, method, operation, collection_name)
+                        # Prepare log entry for the inserted documents
+                        new_log_entry = {
+                            "log_id": str(process_id),
+                            "operation": operation
+                        }
 
-                        if process_id:
-                            # Prepare bulk update operations to add the log field to the inserted documents
-                            log_info = {
-                                "log_id": str(process_id),
-                                "operation": operation
-                            }
-                            bulk_updates = [
-                                UpdateOne({"_id": doc_id}, {"$set": {"log": [log_info]}})
-                                for doc_id in inserted_ids
-                            ]
+                        # Add the log entry to each inserted document
+                        bulk_updates = [
+                            UpdateOne({'_id': doc_id}, {'$set': {'log': [new_log_entry]}}) 
+                            for doc_id in inserted_ids
+                        ]
 
-                            # Perform bulk update operations
-                            if bulk_updates:
-                                collection.bulk_write(bulk_updates)
+                        # Perform bulk update to add log information
+                        collection.bulk_write(bulk_updates)
 
-                            print(f"Number of documents already existing in the collection with the same stable_id: {len(existing_identifiers)}")
-                            print(f"Inserted {len(inserted_ids)} new documents from chunk {i // chunk_size + 1} of {json_file}.")
-                            print(f"Log information generated and added to the documents.")
-                        else:
-                            print("Log details were not generated.")
+                        print(f"Inserted {len(inserted_ids)} document(s) from chunk {i // chunk_size + 1} of {json_file}.")
                     else:
                         print(f"No new documents to insert from chunk {i // chunk_size + 1} of {json_file}.")
-            else:
-                print(f"No new documents to insert from {json_file}.")
 
-        # Print the total number of inserted documents at the end
         print(f"Total number of documents inserted: {total_inserted_documents}")
+        print(f"Total number of documents updated: {total_updated_documents}")
+        print(f"Total number of documents skipped: {total_skipped_documents}")
 
     else:
         print(f'{json_documents} file or directory does not exist.')
