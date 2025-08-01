@@ -27,7 +27,7 @@ json_documents=f'' # Path to a json document or directory to be inserted.
 update_field='' # Target field to be updated (for update_one and update_all).
 new_value='' # New value for the field (for update_one and update_all).
 update_criteria={'stable_id':''} # Criteria for update_one, the first element should be the field name to match (stable_id), and the second should be the actual stable_id value.
-# If using update_with_file please provide the path of the CSV with the information or the path of the directory with the CSVs.  
+# If using update_with_file please provide the path of the CSV/JSON with the information or the path of the directory with the CSVs/JSONs.  
 update_file = ''
 # Important to consider
 ## If you want to add a list as a new value, separate the values with ";".
