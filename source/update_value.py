@@ -211,80 +211,78 @@ def updateFile(operation, db, collection_name, update_file, name, method):
             print(f"Processing {csv_file}")
             update_data = pd.read_csv(csv_file)
 
+            # Check if the CSV has at least two columns
+            if update_data.shape[1] < 2:
+                print("CSV must have at least two columns: one for matching and at least one for updating.")
+                continue
+
             # Ensure the CSV has at least two columns: one for matching and one for the field to update
             column_names = update_data.columns.to_list()
             field_to_match = column_names[0]
-            update_field = column_names[1]
-            values_to_match = update_data[field_to_match].values
-            new_values = update_data[update_field].values
+            update_fields = column_names[1:]
 
             # Insert metadata about the update process in the log_details collection
             process_id = log_functions.insertLog(db, name, method, operation, collection_name)
-
             updates_made_csv = 0
 
-            # Loop through each value in the CSV
-            for value_to_match, new_value in zip(values_to_match, new_values):
-                if pd.isna(new_value) or new_value is None:
-                    new_value_list = None
-                elif isinstance(new_value, np.bool_):
-                    new_value_list = bool(new_value)
-                else:
-                    new_value_list = new_value.split(";") if isinstance(new_value, str) and ";" in new_value else new_value
-
+            # Loop through each row in the CSV
+            for _, row in update_data.iterrows():
+                value_to_match = row[field_to_match]
                 update_criteria = {field_to_match: value_to_match}
                 previous_document = collection.find_one(update_criteria)
 
-                # Check if the document exists
-                if previous_document:
-                    # Retrieve the current value using dot notation
-                    current_value = previous_document
-                    for key in update_field.split("."):
-                        current_value = current_value.get(key)
-                        if current_value is None:
-                            break
-
-                    # If the field doesn't exist or is None, create it and set the new value
-                    if current_value is None:
-                        print(f"Field '{update_field}' doesn't exist or has no value in document with {field_to_match}: {value_to_match}. Creating field and setting new value.")
-                        updated_log = log_functions.updateLog(previous_document, process_id, operation, update_field, None, new_value_list)
-                        result = collection.update_one(update_criteria, {"$set": {update_field: new_value_list, "log": updated_log}})
-                        if result.modified_count > 0:
-                            updates_made_csv += 1
-                    # If the field exists and has a different value, update it
-                    elif current_value != new_value_list:
-                        print(f"Field '{update_field}' already exists and has a different value in document with {field_to_match}: {value_to_match}. Updating the field.")
-                        updated_log = log_functions.updateLog(previous_document, process_id, operation, update_field, current_value, new_value_list)
-                        result = collection.update_one(update_criteria, {"$set": {update_field: new_value_list, "log": updated_log}})
-                        if result.modified_count > 0:
-                            updates_made_csv += 1
-                    # If the field exists and has the same value, no update is needed
-                    else:
-                        print(f"Field '{update_field}' already exists and has the same value in document with {field_to_match}: {value_to_match}. No update required.")
+                # Skip if matching value is missing
+                if pd.isna(value_to_match):
+                    continue
                 
-                # If the document doesn't exist, create a new one with the specified field and value
+                # Build update document
+                new_values = {}
+                for field in update_fields:
+                    raw_value = row[field]
+                    if pd.isna(raw_value) or raw_value is None:
+                        new_value = None
+                    elif isinstance(raw_value, np.bool_):
+                        new_value = bool(raw_value)
+                    else:
+                        new_value = raw_value.split(";") if isinstance(raw_value, str) and ";" in raw_value else raw_value
+                    new_values[field] = new_value
+
+                # If the document exists, update it
+                if previous_document:
+                    # Apply updates
+                    collection.update_one(update_criteria, {"$set": new_values})
+                    updated_doc = collection.find_one(update_criteria)
+
+                    # Generate diff log entry
+                    log_entry = log_functions.diffLogEntry(previous_document, updated_doc, process_id, operation)
+
+                    if log_entry["modified_fields"]:
+                        modified_names = [f["field"] for f in log_entry["modified_fields"]]
+                        print(f"Updated document with {field_to_match}: {value_to_match}. Modified fields: {', '.join(modified_names)}.")
+                        collection.update_one(update_criteria, {"$push": {"log": {"$each": [log_entry], "$position": 0}}})
+                        updates_made_csv += len(modified_names)
+                    else:
+                        print(f"No changes required for document with {field_to_match}: {value_to_match}.")
                 else:
-                    print(f"The document with {field_to_match} {value_to_match} is not in the collection. Creating new document, new field and setting new value.")
-                    temp_document = {field_to_match: value_to_match}
-                    
-                    # Create the nested structure for the update_field
-                    keys = update_field.split(".")
-                    nested = temp_document
-                    # If the field is nested, create the necessary structure
-                    for key in keys[:-1]:
-                        nested[key] = {}
-                        nested = nested[key]
-                    nested[keys[-1]] = new_value_list
-                    collection.insert_one(temp_document)
-                    updates_made_csv += 1
-                    updated_log = log_functions.updateLog(temp_document, process_id, operation, update_field, None, new_value_list)
-                    collection.update_one({field_to_match: value_to_match}, {"$set": {"log": updated_log}})
+                    # Create new document
+                    print(f"The document with {field_to_match} {value_to_match} is not in the collection. Creating new document.")
+                    new_doc = {field_to_match: value_to_match, **new_values}
+                    modified_fields = [{"field": f} for f in update_fields if f != "log"]
+
+                    log_entry = {
+                        "log_id": str(process_id),
+                        "operation": operation,
+                        "modified_fields": modified_fields
+                    }
+                    new_doc["log"] = [log_entry]
+                    collection.insert_one(new_doc)
+                    updates_made_csv += len(update_fields)
 
             if updates_made_csv > 0:
                 print(f"Total number of updates made with this CSV: {updates_made_csv}.")
             else:
                 log_functions.deleteLog(db, str(process_id))
-                print(f"No changes were made with CSV files.")
+                print(f"No changes were made with this CSV file.")
 
         ### Process JSON files ###
         for json_file in json_files:
