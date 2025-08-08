@@ -36,6 +36,7 @@ update_file = ''
 # ----------
 # Restore needs:
 # ----------
+restore_field='' # Target field to be restored (for restore_one and restore_all).
 restore_criteria={'stable_id':''} # Criteria for restore_one, the first element should be the field name to match (stable_id), and the second should be the actual stable_id value. 
 log_id='' # Log id to the version to be restored (restore_all only needs this field).
 

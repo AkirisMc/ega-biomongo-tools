@@ -54,8 +54,8 @@ def run_operation():
     elif conf.operation == 'update_with_file' and conf.update_file != '':
         update_value.updateFile(conf.operation, db, conf.collection_name, conf.update_file, conf.name, conf.method)
 
-    elif conf.operation == 'restore_one' and conf.restore_criteria != '' and conf.log_id != '':
-        restore_value.restoreOne(conf.operation, db, conf.collection_name, conf.restore_criteria, conf.log_id, conf.name, conf.method)
+    elif conf.operation == 'restore_one' and conf.restore_field != '' and conf.restore_criteria != '' and conf.log_id != '':
+        restore_value.restoreOne(conf.operation, db, conf.collection_name, conf.restore_criteria, conf.restore_field, conf.log_id, conf.name, conf.method)
 
     elif conf.operation == 'restore_all' and conf.log_id != '':
         restore_value.restoreAll(conf.operation, db, conf.collection_name, conf.log_id, conf.name, conf.method)
