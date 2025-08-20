@@ -25,6 +25,7 @@ def connect_mongo():
     try:
         # Connect to MongoDB
         client = MongoClient(mongoConnection.mongo_host, mongoConnection.mongo_port, username=mongoConnection.username, password=mongoConnection.password, authSource=mongoConnection.auth_source)
+
         # Acces the database:
         db = client[conf.database_name]
         # If connection successful, print success message
@@ -57,8 +58,8 @@ def run_operation():
     elif conf.operation == 'restore_one' and conf.restore_field != '' and conf.restore_criteria != '' and conf.log_id != '':
         restore_value.restoreOne(conf.operation, db, conf.collection_name, conf.restore_criteria, conf.restore_field, conf.log_id, conf.name, conf.method)
 
-    elif conf.operation == 'restore_all' and conf.log_id != '':
-        restore_value.restoreAll(conf.operation, db, conf.collection_name, conf.log_id, conf.name, conf.method)
+    elif conf.operation == 'restore_all' and conf.restore_field != '' and conf.log_id != '':
+        restore_value.restoreAll(conf.operation, db, conf.collection_name, conf.restore_field, conf.log_id, conf.name, conf.method)
 
     elif conf.operation == 'add_empty_field' and conf.new_field != '':
         new_field.addNullField(conf.operation, db, conf.collection_name, conf.new_field, conf.name, conf.method)

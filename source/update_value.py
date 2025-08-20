@@ -60,17 +60,15 @@ def updateOne(operation, db, collection_name, update_criteria, update_field, new
         # If the field doesn't exist in the document, explicitly set `None` as the current value
         if current_value is None:
             print(f"Field {update_field} doesn't exist or has no value in the document. Creating field and setting new value.")
-            modified_field = {"field": update_field, "added": [new_value_list], "removed": [None]}
         elif current_value != new_value_list:
             print(f"Field {update_field} exists and has a different value in document with stable_id: {list(update_criteria.values())[0]}. Updating the field.")
-            modified_field = {"field": update_field, "added": [new_value_list], "removed": [current_value]}
         else:
             print(f"Field {update_field} exists but has the same value in document with stable_id: {list(update_criteria.values())[0]}. No update required.")
             log_functions.deleteLog(db, str(process_id))
             return  # Exit the function without performing the update if values are the same
 
         # Update the log with the modified field
-        updated_log = log_functions.updateLogNew(previous_document, process_id, operation, modified_field)
+        updated_log = log_functions.updateLog(previous_document, process_id, operation, update_field, current_value if current_value is not None else None, new_value_list)
         # Update the document with the new data
         result = collection.update_one(update_criteria, {"$set": {update_field: new_value_list, "log": updated_log}})
             
@@ -130,19 +128,16 @@ def updateAll(operation, db, collection_name, update_field, new_value, name, met
         if current_value is None:
             # If the field is set as Null or doesn't exist, create it and set the new value
             print(f"Field {update_field} doesn't exist or has no value in document with stable_id: {stable_id}. Creating field and setting new value.")
-            modified_field = {"field": update_field, "added": [new_value_list], "removed": [None]}
-
         elif current_value != new_value_list:
             # If the field exists but the value is different, update it
             print(f"Field {update_field} exists and has a different value in document with stable_id: {stable_id}. Updating the field.")
-            modified_field = {"field": update_field, "added": [new_value_list], "removed": [current_value]}
         else:
             # If the field exists and the value is the same, no update is needed
             print(f"Field {update_field} exists but has the same value in document with stable_id: {stable_id}. No update required.")
             continue  # Skip to the next document if no update is needed
 
         # Update the log with the modified field
-        updated_log = log_functions.updateLogNew(document, process_id, operation, modified_field)
+        updated_log = log_functions.updateLog(document, process_id, operation, update_field, current_value if current_value is not None else None, new_value_list)
         # Prepare the bulk update operation
         bulk_updates.append(UpdateOne({"_id": document["_id"]}, {"$set": {update_field: new_value_list, "log": updated_log}}))
 
