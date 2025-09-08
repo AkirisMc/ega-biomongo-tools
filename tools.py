@@ -28,6 +28,7 @@ def connect_mongo():
 
         # Acces the database:
         db = client[conf.database_name]
+
         # If connection successful, print success message
         print("Connection to BioMongoDB established.")
 
@@ -67,8 +68,11 @@ def run_operation():
     elif conf.operation == 'rename_field' and conf.field_name != '' and conf.new_field_name != '':
         rename_field.renameField(conf.operation, db, conf.collection_name, conf.field_name, conf.new_field_name, conf.name, conf.method)
 
-    elif conf.operation == 'remove_field' and conf.field_to_remove != '':
-        remove_field.removeField(conf.operation, db, conf.collection_name, conf.field_to_remove, conf.name, conf.method)
+    elif conf.operation == 'remove_one' and conf.remove_field != '' and conf.remove_criteria != '':
+        remove_field.removeOne(conf.operation, db, conf.collection_name, conf.remove_criteria, conf.remove_field, conf.name, conf.method)
+    
+    elif conf.operation == 'remove_all' and conf.remove_field != '':
+        remove_field.removeAll(conf.operation, db, conf.collection_name, conf.remove_field, conf.name, conf.method)
 
     else:
         print('Something is missing in the conf.py file')
@@ -77,7 +81,7 @@ def main():
     if conf.operation == '' and conf.database_name == '' and conf.collection_name == '' and conf.name == '' and conf.method == '':
         # First print help message just in case.
         print_help()
-    elif conf.operation == '' or conf.operation not in ['insert', 'update_one', 'update_all', 'update_with_file', 'restore_one', 'restore_all', 'add_empty_field', 'rename_field', 'remove_field']:
+    elif conf.operation == '' or conf.operation not in ['insert', 'update_one', 'update_all', 'update_with_file', 'restore_one', 'restore_all', 'add_empty_field', 'rename_field', 'remove_one', 'remove_all']:
         print("Operation is missing or wrong.")
     elif conf.database_name == '':
         print("Database is missing.")
