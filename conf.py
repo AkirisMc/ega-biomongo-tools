@@ -7,7 +7,7 @@
 # ----------
 # General information
 # ----------
-operation='' # Operations: insert, update_one, update_all, update_with_file, restore_one, restore_all, add_empty_field, rename_field, remove_field
+operation='' # Operations: insert, update_one, update_all, update_with_file, restore_one, restore_all, add_empty_field, rename_field, remove_one, remove_all
 name='' # Name of the person that does this operation.
 method='' # Method used to obtain or modify the data (e.g. Raw data EGAPRO).
 database_name='' # Name of the database.
@@ -55,5 +55,5 @@ new_field_name='' # New name for the above stated field
 # ---------
 # Remove needs:
 # ---------
-# Take into account that you will remove the information from the field in all the files in the colection.
-field_to_remove='' # Name of the field to be removed.
+remove_field='' # Target field to be removed (for remove_one and remove_all).
+remove_criteria={'stable_id':''} # Criteria for remove_one, the first element should be the field name to match (stable_id), and the second should be the actual stable_id value.
