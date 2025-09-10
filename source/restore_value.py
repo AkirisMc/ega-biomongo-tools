@@ -10,7 +10,7 @@ __status__ = "development"
 
 from . import log_functions
 
-def restoreOne(operation, db, collection_name, reset_criteria, log_id, name, method):
+def restoreOne(operation, db, collection_name, reset_criteria, field_name, log_id, name, method):
     """
     Reset the value of a field (embedded or non-embedded) in a document to a previous version using the log_id.
     """
@@ -18,173 +18,176 @@ def restoreOne(operation, db, collection_name, reset_criteria, log_id, name, met
     collection = db[collection_name]
 
     # Find the document
-    previous_document = collection.find_one(reset_criteria)
+    doc = collection.find_one(reset_criteria)
     
     # Check if the document exists
-    if not previous_document:
+    if not doc:
         print(f"The document you are searching for is not in the collection.")
         return
 
-    # Insert metadata about the restore process in the meta collection
+    # Insert metadata about the restore process in the log_details collection
     process_id = log_functions.insertLog(db, name, method, operation, collection_name)
 
     # Retrieve the logs
-    log_entries = previous_document.get('log', [])
+    logs = doc.get('log', [])
 
-    # Find the log entry to restore
-    log_entry = next((entry for entry in log_entries if entry.get('log_id') == log_id), None)
-    
-    if not log_entry:
+    # Find the target log entry by log_id
+    target_log_index = None # Set to None to indicate not found
+    for i, log in enumerate(logs):
+        if log.get("log_id") == log_id:
+            target_log_index = i
+            break
+
+    # If the log_id is not found, delete the log and exit
+    if target_log_index is None:
         log_functions.deleteLog(db, str(process_id))
-        print(f'The log_id: {log_id} does not exist in the document.')
+        print(f"log_id {log_id} not found in document.")
+        return
+    
+    # Check if the operation is valid for restoration
+    log_operation = logs[target_log_index].get("operation", "").lower()
+    if not (log_operation.startswith("update") or log_operation.startwith("restore")):
+        log_functions.deleteLog(db, str(process_id))
+        print("Only update or restore operations can be restored.")
         return
 
-    if 'update' not in log_entry.get('operation') and 'restore' not in log_entry.get('operation'): 
-        log_functions.deleteLog(db, str(process_id))
-        print('Only update|restore operations can be restored.')
-        return
-
-    # Get the field and value to restore
-    modified_field = log_entry.get('modified_field')
-    
-    # Retrieve current value (handle embedded fields)
-    current_value = previous_document
-    for key in modified_field.split("."):
-        current_value = current_value.get(key, None)
+    # Get current field value
+    current_value = doc
+    for key in field_name.split("."):
+        current_value = current_value.get(key, None) if isinstance(current_value, dict) else None
         if current_value is None:
             break
     
-    current_value_list = current_value if isinstance(current_value, list) else [current_value] if current_value is not None else []
+    # Initialize restored_value as a list
+    restored_value = current_value if isinstance(current_value, list) else [current_value] if current_value is not None else [] 
 
-    print(f"The modified field: {modified_field}")
+    looped_logs = 0 # Counter for logs processed
 
-    looped_logs = 0
-    restored_value_list = current_value_list
-
-    # Loop through the log entries to compute the restored value
-    for entry in log_entries:
-        if entry.get('log_id') == log_id:
+    # Loop through logs from latest to target log
+    for log in logs:
+        if log.get("log_id") == log_id:
             break
 
-        modified_field_entry = entry.get('modified_field')
-        
-        if modified_field == modified_field_entry:
-            looped_logs += 1
-            print(f"Processing log entry {looped_logs}")
+        looped_logs += 1
+        print(f"Processing log entry {looped_logs}")
 
-            added_value_list = entry.get('changed_values', {}).get('added', [])
-            removed_value_list = entry.get('changed_values', {}).get('removed', [])
+        # Find the field entry in the modified fields
+        field_entry = next((mf for mf in log.get("modified_fields", []) if mf.get("field") == field_name), None) 
+        if not field_entry:
+            continue
 
-            print(f"Current value from this log entry: {restored_value_list}")
-            print(f"Added values: {added_value_list}")
-            print(f"Removed values: {removed_value_list}")
+        added = field_entry.get("added", []) # List of values added in this log entry
+        removed = field_entry.get("removed", []) # List of values removed in this log entry
 
-            # Compute the previous value (restored_value)
-            restored_value_list = [x for x in restored_value_list if x not in added_value_list] + removed_value_list
-            print(f"Restored value after this log entry: {restored_value_list}")
+        print(f"Current value from this log entry: {restored_value}")
+        print(f"Added values: {added}")
+        print(f"Removed values: {removed}") 
 
-    # Convert single-element lists to a normal string
-    restored_value_list = restored_value_list[0] if len(restored_value_list) == 1 else restored_value_list
+        # Reverse the change: remove added, re-add removed
+        restored_value = [x for x in restored_value if x not in added] + removed
+        print(f"Restored value after processing this log entry: {restored_value}")
 
-    # Check if the restored value is equal to the current value
-    if restored_value_list == current_value or restored_value_list == current_value_list:
+    # Convert back to original type if it was not a list
+    if not isinstance(current_value, list) and len(restored_value) <= 1:
+        restored_value = restored_value[0] if restored_value else None
+
+    # Check if the restored value is the same as the current value
+    if restored_value == current_value:
         log_functions.deleteLog(db, str(process_id))
-        print("The current value is already equal to the restored value. No changes were made.")
+        print("No changes needed. Field already matches target state.")
         return
-    
-    # Create the log object for this operation
-    updated_log = log_functions.updateLog(previous_document, process_id, operation, modified_field, current_value, restored_value_list)
 
-    # Perform update
-    result = collection.update_one(reset_criteria, {"$set": {modified_field: restored_value_list, "log": updated_log}})
+    # Update the document
+    updated_log = log_functions.updateLog(doc, process_id, operation, field_name, current_value, restored_value)
+    result = collection.update_one(reset_criteria, {"$set": {field_name: restored_value, "log": updated_log}})
 
-    if result.modified_count > 0:
-        print(f'Document with stable_id {reset_criteria.get("stable_id")} successfully restored to the value at log {log_id}')
+    # Check if the update was successful
+    if result.modified_count:
+        print(f"Field {field_name} successfully restored to the value at log_id: {log_id}.")
     else:
-        print('No changes were made.')
+        print("No changes were made.")
 
-def restoreAll(operation, db, collection_name, log_id, name, method):
+def restoreAll(operation, db, collection_name, field_name, log_id, name, method):
     """
     Reset a field (embedded or non-embedded) in all documents in the collection to a previous version using log_id.
     """
     # Access the collection:
     collection = db[collection_name]
 
-    # Retrieve all documents in the collection
-    documents = collection.find()
-
-    # Insert metadata about the restore process in the meta collection
+    # Insert metadata about the restore process in the log_details collection
     process_id = log_functions.insertLog(db, name, method, operation, collection_name)
-    if not process_id:
-        print('Failed to create log for the restore process.')
-        return
 
     restored_documents = 0
     
-    for document in documents:
-        log_entries = document.get('log', [])
+    # Iterate through all documents in the collection
+    for doc in collection.find():
+        # Retrieve the logs 
+        logs = doc.get("log", [])
+        target_log_index = None
+
+        # Find the target log entry by log_id
+        for i, log in enumerate(logs):
+            if log.get("log_id") == log_id:
+                target_log_index = i
+                break
         
-        # Find the log entry to restore
-        log_entry = next((entry for entry in log_entries if entry.get('log_id') == log_id), None)
-        
-        if not log_entry:
-            print(f"The log_id {log_id} does not exist in the document with _id {document['_id']}")
+        # If the log_id is not found, skip this document
+        if target_log_index is None:
+            print(f"log_id {log_id} not found in document {doc.get('stable_id')}")
             continue
 
-        if 'update' not in log_entry.get('operation') and 'restore' not in log_entry.get('operation'):
-            print(f"Only update|restore operations can be restored in document with _id {document['_id']}")
+        # Check if the operation is valid for restoration
+        log_operation = logs[target_log_index].get("operation", "").lower()
+        if not (log_operation.startswith("update") or log_operation.startswith("restore")):
+            print(f"Only update or restore operations can be restored. Skipping document {doc.get('stable_id')}")
             continue
 
-        # Get the field and value to restore
-        modified_field = log_entry.get('modified_field')
-
-        # Retrieve current value (handle embedded fields)
-        current_value = document
-        for key in modified_field.split("."):
-            current_value = current_value.get(key, None)
+        # Get current field value
+        current_value = doc
+        for key in field_name.split("."):
+            current_value = current_value.get(key, None) if isinstance(current_value, dict) else None
             if current_value is None:
                 break
-        
-        current_value_list = current_value if isinstance(current_value, list) else [current_value] if current_value is not None else []
-        
-        looped_logs = 0
-        restored_value_list = current_value_list
 
-        # Loop through log entries to compute the restored value
-        for entry in log_entries:
-            if entry.get('log_id') == log_id:
+        # Initialize restored_value as a list
+        restored_value = current_value if isinstance(current_value, list) else [current_value] if current_value is not None else []
+
+        looped_logs = 0  # Counter for logs processed
+
+        # Loop through logs from latest to target log
+        for log in logs:
+            if log.get("log_id") == log_id:
                 break
+            
+            looped_logs += 1
 
-            if entry.get('modified_field') == modified_field:
-                looped_logs += 1
-                added_value_list = entry.get('changed_values', {}).get('added', [])
-                removed_value_list = entry.get('changed_values', {}).get('removed', [])
+            # Find the field entry in the modified fields
+            field_entry = next((mf for mf in log.get("modified_fields", []) if mf.get("field") == field_name), None)
+            if not field_entry:
+                continue
 
-                # Compute the restored value
-                restored_value_list = [x for x in restored_value_list if x not in added_value_list] + removed_value_list
-        
-        # Convert single-element lists to a normal string
-        restored_value_list = restored_value_list[0] if len(restored_value_list) == 1 else restored_value_list
+            added = field_entry.get("added", []) # List of values added in this log entry
+            removed = field_entry.get("removed", []) # List of values removed in this log entry
 
-        # Check if the restored value is equal to the current value
-        if restored_value_list == current_value or restored_value_list == current_value_list:
-            print(f"No changes needed for document stable_id {document['stable_id']}, the current value is already equal to the restored value.")
-            continue
+            # Reverse the change: remove added, re-add removed
+            restored_value = [x for x in restored_value if x not in added] + removed
 
-        # Create the log object for this operation
-        updated_log = log_functions.updateLog(document, process_id, operation, modified_field, current_value, restored_value_list)
+        # Convert back to original type if needed
+        if not isinstance(current_value, list) and len(restored_value) <= 1:
+            restored_value = restored_value[0] if restored_value else None
 
-        # Update the document
-        result = collection.update_one(
-            {"_id": document["_id"]},
-            {"$set": {modified_field: restored_value_list, "log": updated_log}}
-        )
+        # Check if the restored value is different from the current value
+        if restored_value != current_value:
+            # Update the log with the restoration details
+            updated_log = log_functions.updateLog(doc, process_id, operation, field_name, current_value, restored_value)
+            # Update the document with the restored value and updated log 
+            result = collection.update_one({"_id": doc["_id"]}, {"$set": {field_name: restored_value, "log": updated_log}}) 
+            if result.modified_count:
+                restored_documents += 1
 
-        if result.modified_count > 0:
-            restored_documents += 1
-    
+    # Check if any documents were restored
     if restored_documents == 0:
         log_functions.deleteLog(db, str(process_id))
         print("No changes were made.")
     else:
-        print(f'Field {modified_field} restored successfully to the values at log {log_id} in {restored_documents} documents.')
+        print(f"Field {field_name} successfully restored to the values at log {log_id} in {restored_documents} documents.")

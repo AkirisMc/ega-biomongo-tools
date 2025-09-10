@@ -41,31 +41,34 @@ def updateLog(previous_document, process_id, operation, update_field, previous_v
     # If there's no previous document (meaning the log doesn't exist yet), start with an empty log
     existing_log = [] if previous_document is None else previous_document.get("log", [])
 
-    # Normalize values to lists for proper comparison
-    prev_list = previous_value if isinstance(previous_value, list) else [previous_value] if previous_value is not None and previous_value != "Non-existing" else []
-    new_list = new_value if isinstance(new_value, list) else [new_value] if new_value is not None else []
-
-    # Compute added and removed values
-    added_values = list(set(new_list) - set(prev_list))
-    removed_values = list(set(prev_list) - set(new_list))
-
-    # Prepare log entry
+    # Prepare the base log entry
     new_log = {
         "log_id": str(process_id),
         "operation": operation,
-        "modified_field": update_field,
+        "modified_fields": []
     }
 
-    # Include changed values only if there's a difference
-    if previous_value is not None and previous_value != "Non-existing":
-        new_log["changed_values"] = {}
+    # Case 1: Field did not exist before
+    if previous_value == "Non-existing" or previous_value is None:
+        new_log["modified_fields"].append({"field": update_field})
 
-        if added_values:  
-            new_log["changed_values"]["added"] = added_values  
+    else:
+        # Normalize values to lists for proper comparison
+        prev_list = previous_value if isinstance(previous_value, list) else [previous_value]
+        new_list = new_value if isinstance(new_value, list) else [new_value]
 
-        if removed_values:  
-            new_log["changed_values"]["removed"] = removed_values  
+        # Compute added and removed values
+        added_values = list(set(new_list) - set(prev_list))
+        removed_values = list(set(prev_list) - set(new_list))
 
+        field_entry = {"field": update_field}
+
+        if added_values:
+            field_entry["added"] = added_values
+        if removed_values:
+            field_entry["removed"] = removed_values
+
+        new_log["modified_fields"].append(field_entry)
 
     # Merge the new metadata with the existing log
     existing_log.insert(0, new_log)

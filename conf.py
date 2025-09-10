@@ -28,7 +28,7 @@ update_field='' # Target field to be updated (for update_one and update_all).
 new_value='' # New value for the field (for update_one and update_all).
 update_criteria={'stable_id':''} # Criteria for update_one, the first element should be the field name to match (stable_id), and the second should be the actual stable_id value.
 # If using update_with_file please provide the path of the CSV/JSON with the information or the path of the directory with the CSVs/JSONs.  
-update_file = ''
+update_file=''
 # Important to consider
 ## If you want to add a list as a new value, separate the values with ";".
 ## If you want to modify an embedded/nested field, use dot notation (e.g. archived_at.crg)  
@@ -36,8 +36,10 @@ update_file = ''
 # ----------
 # Restore needs:
 # ----------
+restore_field='' # Target field to be restored (for restore_one and restore_all).
+log_id='' # log_id to the version to be restored (for restore_one and restore_all).
 restore_criteria={'stable_id':''} # Criteria for restore_one, the first element should be the field name to match (stable_id), and the second should be the actual stable_id value. 
-log_id='' # Log id to the version to be restored (restore_all only needs this field).
+
 
 # ---------
 # Add empty field needs:
