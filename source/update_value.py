@@ -16,7 +16,6 @@ import os
 from pymongo import UpdateOne
 from os import listdir
 from os.path import isfile, join, isdir
-import pandas as pd
 import re
 
 def updateOne(operation, db, collection_name, update_criteria, update_field, new_value, name, method):
@@ -231,23 +230,55 @@ def updateFile(operation, db, collection_name, update_file, name, method):
                 
                 # Build update document
                 new_values = {}
+
                 for field in update_fields:
                     raw_value = row[field]
+
                     if pd.isna(raw_value) or raw_value is None:
                         new_value = None
                     elif isinstance(raw_value, np.bool_):
                         new_value = bool(raw_value)
                     else:
                         new_value = raw_value.split(";") if isinstance(raw_value, str) and ";" in raw_value else raw_value
-                    new_values[field] = new_value
+
+                    # Build nested structure if dotted field
+                    if "." in field:
+                        keys = field.split(".")
+                        nested = new_values
+                        for k in keys[:-1]:
+                            nested = nested.setdefault(k, {})
+                        nested[keys[-1]] = new_value
+                    else:
+                        new_values[field] = new_value
 
                 # If the document exists, update it
                 if previous_document:
-                    # Apply updates
-                    collection.update_one(update_criteria, {"$set": new_values})
-                    updated_doc = collection.find_one(update_criteria)
 
-                    # Generate diff log entry
+                    # Build a flat update dict compatible with MongoDB $set
+                    flat_updates = {}        
+
+                    for field in update_fields:
+                        raw_value = row[field]
+
+                        # Normalize value types
+                        if pd.isna(raw_value) or raw_value is None:
+                            new_value = None
+                        elif isinstance(raw_value, np.bool_):
+                            new_value = bool(raw_value)
+                        else:
+                            new_value = raw_value.split(";") if isinstance(raw_value, str) and ";" in raw_value else raw_value
+
+                        # If dotted field → add directly as "a.b.c": value
+                        if "." in field:
+                            flat_updates[field] = new_value
+                        else:
+                            flat_updates[field] = new_value
+
+                    # Apply updates
+                    collection.update_one(update_criteria, {"$set": flat_updates})
+
+                    # Compare and generate log entry
+                    updated_doc = collection.find_one(update_criteria)
                     log_entry = log_functions.diffLogEntry(previous_document, updated_doc, process_id, operation)
 
                     if log_entry["modified_fields"]:
@@ -257,10 +288,22 @@ def updateFile(operation, db, collection_name, update_file, name, method):
                         updates_made_csv += len(modified_names)
                     else:
                         print(f"No changes required for document with {field_to_match}: {value_to_match}.")
+ 
                 else:
                     # Create new document
                     print(f"The document with {field_to_match} {value_to_match} is not in the collection. Creating new document.")
-                    new_doc = {field_to_match: value_to_match, **new_values}
+                    new_doc = {field_to_match: value_to_match}
+
+                    def merge_nested(target, source):
+                        """Recursively merge nested dicts created from dotted fields."""
+                        for key, value in source.items():
+                            if isinstance(value, dict) and key in target and isinstance(target[key], dict):
+                                merge_nested(target[key], value)
+                            else:
+                                target[key] = value
+
+                    merge_nested(new_doc, new_values)
+
                     modified_fields = [{"field": f} for f in update_fields if f != "log"]
 
                     log_entry = {
@@ -269,6 +312,7 @@ def updateFile(operation, db, collection_name, update_file, name, method):
                         "modified_fields": modified_fields
                     }
                     new_doc["log"] = [log_entry]
+
                     collection.insert_one(new_doc)
                     updates_made_csv += len(update_fields)
 

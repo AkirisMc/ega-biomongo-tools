@@ -46,7 +46,7 @@ def restoreOne(operation, db, collection_name, reset_criteria, field_name, log_i
     
     # Check if the operation is valid for restoration
     log_operation = logs[target_log_index].get("operation", "").lower()
-    if not (log_operation.startswith("update") or log_operation.startwith("restore")):
+    if not (log_operation.startswith("update") or log_operation.startswith("restore")):
         log_functions.deleteLog(db, str(process_id))
         print("Only update or restore operations can be restored.")
         return

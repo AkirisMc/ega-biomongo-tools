@@ -7,11 +7,11 @@
 # ----------
 # General information
 # ----------
-operation='' # Operations: insert, update_one, update_all, update_with_file, restore_one, restore_all, add_empty_field, rename_field, remove_one, remove_all
+operation='' # Operations: insert, update_one, update_all, update_with_file, restore_one, restore_all, add_empty_field, rename_one, rename_all, remove_one, remove_all
 name='' # Name of the person that does this operation.
 method='' # Method used to obtain or modify the data (e.g. Raw data EGAPRO).
 database_name='' # Name of the database.
-collection_name='' # Collection to be managed (analysis, dac, dataset, experiment, file, policy, run, sample, study).
+collection_name='' # Collection to be managed (analyses, dacs, datasets, experiments, files, policies, runs, samples, studies).
 
 
 # Depending on the operation you should include the relevant information.
@@ -49,8 +49,9 @@ new_field='' # Name of the new field to be added. Please do not use empty spaces
 # ----------
 # Rename needs:
 # ----------
-field_name='' # Name of the field to be changed.
-new_field_name='' # New name for the above stated field
+rename_field='' # Target field to be renamed (for rename_one and rename_all). 
+new_field_name='' # New name for the field (for rename_one and rename_all). 
+rename_criteria={'stable_id':''} # Criteria for rename_one, the first element should be the field name to match (stable_id), and the second should be the actual stable_id value.
 
 # ---------
 # Remove needs:

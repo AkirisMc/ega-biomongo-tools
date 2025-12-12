@@ -167,3 +167,15 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 source/populate_value.py
+biomongo_env/pyvenv.cfg
+biomongo_env/Scripts/activate
+biomongo_env/Scripts/activate.bat
+biomongo_env/Scripts/Activate.ps1
+biomongo_env/Scripts/deactivate.bat
+biomongo_env/Scripts/deep.exe
+biomongo_env/Scripts/f2py.exe
+biomongo_env/Scripts/pip.exe
+biomongo_env/Scripts/pip3.12.exe
+biomongo_env/Scripts/pip3.exe
+biomongo_env/Scripts/python.exe
+biomongo_env/Scripts/pythonw.exe
