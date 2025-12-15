@@ -65,8 +65,11 @@ def run_operation():
     elif conf.operation == 'add_empty_field' and conf.new_field != '':
         new_field.addNullField(conf.operation, db, conf.collection_name, conf.new_field, conf.name, conf.method)
 
-    elif conf.operation == 'rename_field' and conf.field_name != '' and conf.new_field_name != '':
-        rename_field.renameField(conf.operation, db, conf.collection_name, conf.field_name, conf.new_field_name, conf.name, conf.method)
+    elif conf.operation == 'rename_one' and conf.rename_field != '' and conf.new_field_name != '' and conf.rename_criteria != '':
+        rename_field.renameOne(conf.operation, db, conf.collection_name, conf.rename_criteria, conf.rename_field, conf.new_field_name, conf.name, conf.method)
+    
+    elif conf.operation == 'rename_all' and conf.rename_field != '' and conf.new_field_name != '':
+        rename_field.renameAll(conf.operation, db, conf.collection_name, conf.rename_field, conf.new_field_name, conf.name, conf.method)
 
     elif conf.operation == 'remove_one' and conf.remove_field != '' and conf.remove_criteria != '':
         remove_field.removeOne(conf.operation, db, conf.collection_name, conf.remove_criteria, conf.remove_field, conf.name, conf.method)
@@ -81,7 +84,7 @@ def main():
     if conf.operation == '' and conf.database_name == '' and conf.collection_name == '' and conf.name == '' and conf.method == '':
         # First print help message just in case.
         print_help()
-    elif conf.operation == '' or conf.operation not in ['insert', 'update_one', 'update_all', 'update_with_file', 'restore_one', 'restore_all', 'add_empty_field', 'rename_field', 'remove_one', 'remove_all']:
+    elif conf.operation == '' or conf.operation not in ['insert', 'update_one', 'update_all', 'update_with_file', 'restore_one', 'restore_all', 'add_empty_field', 'rename_one', 'rename_all', 'remove_one', 'remove_all']:
         print("Operation is missing or wrong.")
     elif conf.database_name == '':
         print("Database is missing.")
@@ -100,6 +103,3 @@ def main():
 
 if __name__ == main():
     main()
-
-
-        
