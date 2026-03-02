@@ -10,7 +10,7 @@
 operation='' # Operations: insert, update_one, update_all, update_with_file, restore_one, restore_all, add_empty_field, rename_one, rename_all, remove_one, remove_all
 name='' # Name of the person that does this operation.
 method='' # Method used to obtain or modify the data (e.g. Raw data EGAPRO).
-database_name='' # Name of the database.
+database_name='' # Name of the database (biomongo, test).
 collection_name='' # Collection to be managed (analyses, dacs, datasets, experiments, files, policies, runs, samples, studies).
 
 
