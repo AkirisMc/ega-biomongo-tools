@@ -1,0 +1,9 @@
+{
+    "stable_id": "EGAF00000187866",
+    "inferred_field1": "hg19",
+    "inferred_field2": "FASTQ",
+    "inferred_field3": {
+        "embedded_field1": "false",
+        "embedded_field2": 45841818
+    }
+}

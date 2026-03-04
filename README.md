@@ -1,21 +1,22 @@
-# BioMongoDB tools
+# biomongo-tools
 
-BioMongoDB is envisioned as a MongoDB database to facilitate the storage of information derived from various initiatives within the BioTeam. Find more information [here](https://docs.google.com/document/d/1KPLOE37bp4U5Xd9N6s6-_-UqPOZ4vRo5ZMlPvMinoxo/edit?usp=drive_link).
+biomongo-tools is a Python-based utility designed to manage the information inside of Biomongo. Built as a modular and extensible tool, it simplifies the process of importing, updating, removing, renaming and restoring metadata records in a serialised way.
 
-BioMongo tools is a set of tools designed to manage the BioMongo database. The tools provided here facilitate the manage of information (insertion of information, update of information, etc.) in the BioMongoDB and maintain a log of these changes within the database itself. This new collection will be named `log_details`.
+Biomongo is a MongoDB database (document-oriented) that was created to facilitate the storage and retrieval of metadata derived from various BioTeam initiatives, such as the QC initiative.
+
 
 ## Installation
 
-To install BioMongo tools, follow these steps:
-
+To install biomongo-tools, follow these steps:
 
 1. Clone this repository to your local machine:
 
 ```
 git clone https://github.com/EGA-archive/ega-biomongo-tools.git
+cd ega-biomongo-tools
 ```
 
-2. Install the required dependencies, taking into account that `python --version == 3.10.12`:
+2. Install the required dependencies:
 
 ```
 pip install -r requirements.txt
@@ -24,7 +25,7 @@ pip install -r requirements.txt
 
 ## Usage
 
-BioMongo tools should be as easy to use as possible. The only thing you need to do is to modify the [conf.py](https://github.com/m-huertasp/ega-biomongo-tools/blob/main/conf.py) file taking into account your needs.
+biomongo-tools should be as easy to use as possible. The only thing you need to do is modify the [conf.py](https://github.com/EGA-archive/ega-biomongo-tools/blob/main/conf.py) file taking into account your needs.
 
 Then, the only command you'll need is:
 
@@ -32,4 +33,4 @@ Then, the only command you'll need is:
 python3 tools.py
 ```
 
-To understand how to use the tool, I have written some use cases explained [here](https://docs.google.com/document/d/1rVnTp6rVefees6J4kwp1Thaq4HapLysS452wy5mUuKM/edit?usp=sharing).
+For more information see [user_manual](https://crgcnag.sharepoint.com/:w:/s/Bioteams/IQBPxgGF2HPhRbMWC2sSdOAaAcYSRrDovupZUwsXNMe8Ynk?e=XBdfQa).
