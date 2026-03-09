@@ -4,6 +4,9 @@ biomongo-tools is a Python-based utility designed to manage the information insi
 
 Biomongo is a MongoDB database (document-oriented) that was created to facilitate the storage and retrieval of metadata derived from various BioTeam initiatives, such as the QC initiative.
 
+<p align="center">
+<img src="https://github.com/AkirisMc/ega-biomongo-tools/blob/general_maintenance/diagram.png" width="600">
+</p>
 
 ## Installation
 
