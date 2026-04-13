@@ -65,37 +65,36 @@ def restoreOne(operation, db, collection_name, reset_criteria, field_name, log_i
 
     # Loop through logs from latest to target log
     for log in logs:
-        if log.get("log_id") == log_id:
-            break
-
         looped_logs += 1
-        print(f"Processing log entry {looped_logs}")
+        print(f"Processing log entry {looped_logs}")    
 
         # Find the field entry in the modified fields
         field_entry = next((mf for mf in log.get("modified_fields", []) if mf.get("field") == field_name), None) 
-        if not field_entry:
-            continue
+        if field_entry:
+            added = field_entry.get("added", []) # List of values added in this log entry
+            removed = field_entry.get("removed", []) # List of values removed in this log entry
 
-        added = field_entry.get("added", []) # List of values added in this log entry
-        removed = field_entry.get("removed", []) # List of values removed in this log entry
+            print(f"Current value from this log entry: {restored_value}")
+            print(f"Added values: {added}")
+            print(f"Removed values: {removed}") 
 
-        print(f"Current value from this log entry: {restored_value}")
-        print(f"Added values: {added}")
-        print(f"Removed values: {removed}") 
+            # Reverse the change: remove added, re-add removed
+            restored_value = [x for x in restored_value if x not in added] + removed
+            print(f"Restored value after processing this log entry: {restored_value}")
 
-        # Reverse the change: remove added, re-add removed
-        restored_value = [x for x in restored_value if x not in added] + removed
-        print(f"Restored value after processing this log entry: {restored_value}")
-
-    # Convert back to original type if it was not a list
-    if not isinstance(current_value, list) and len(restored_value) <= 1:
-        restored_value = restored_value[0] if restored_value else None
+        if log.get("log_id") == log_id:
+            print(f"Reached target log entry with log_id: {log_id}. Stopping log processing.")
+            break
 
     # Check if the restored value is the same as the current value
     if restored_value == current_value:
         log_functions.deleteLog(db, str(process_id))
         print("No changes needed. Field already matches target state.")
         return
+    
+    # Convert back to scalar only if the original field was not a list
+    if not isinstance(current_value, list) and isinstance(restored_value, list) and len(restored_value) <= 1:
+        restored_value = restored_value[0] if restored_value else None
 
     # Update the document
     updated_log = log_functions.updateLog(doc, process_id, operation, field_name, current_value, restored_value)
