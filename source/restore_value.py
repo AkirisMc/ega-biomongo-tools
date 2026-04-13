@@ -154,35 +154,41 @@ def restoreAll(operation, db, collection_name, field_name, log_id, name, method)
         looped_logs = 0  # Counter for logs processed
 
         # Loop through logs from latest to target log
-        for log in logs:
-            if log.get("log_id") == log_id:
-                break
-            
+        for log in logs:         
             looped_logs += 1
 
             # Find the field entry in the modified fields
             field_entry = next((mf for mf in log.get("modified_fields", []) if mf.get("field") == field_name), None)
-            if not field_entry:
-                continue
+            if field_entry:
+                added = field_entry.get("added", []) # List of values added in this log entry
+                removed = field_entry.get("removed", []) # List of values removed in this log entry
 
-            added = field_entry.get("added", []) # List of values added in this log entry
-            removed = field_entry.get("removed", []) # List of values removed in this log entry
+                # Reverse the change: remove added, re-add removed
+                restored_value = [x for x in restored_value if x not in added] + removed
+                
+            if log.get("log_id") == log_id:
+                break
 
-            # Reverse the change: remove added, re-add removed
-            restored_value = [x for x in restored_value if x not in added] + removed
+        # Check if the restored value is the same as the current value
+        if restored_value == current_value:
+            print(f"No changes needed for document {doc.get('stable_id')}. Field already matches target state.")
+            continue  
 
-        # Convert back to original type if needed
-        if not isinstance(current_value, list) and len(restored_value) <= 1:
-            restored_value = restored_value[0] if restored_value else None
+        # Convert back to scalar only if the original field was not a list
+        if not isinstance(current_value, list) and isinstance(restored_value, list) and len(restored_value) <= 1:
+            restored_value = restored_value[0] if restored_value else None      
 
-        # Check if the restored value is different from the current value
-        if restored_value != current_value:
-            # Update the log with the restoration details
-            updated_log = log_functions.updateLog(doc, process_id, operation, field_name, current_value, restored_value)
-            # Update the document with the restored value and updated log 
-            result = collection.update_one({"_id": doc["_id"]}, {"$set": {field_name: restored_value, "log": updated_log}}) 
-            if result.modified_count:
-                restored_documents += 1
+        # Update the document with the restored value and updated log
+        updated_log = log_functions.updateLog(doc, process_id, operation, field_name, current_value, restored_value)
+
+        # Update the document with the restored value and updated log
+        result = collection.update_one(
+            {"_id": doc["_id"]}, 
+            {"$set": {field_name: restored_value, "log": updated_log}}
+        )
+
+        if result.modified_count:
+            restored_documents += 1
 
     # Check if any documents were restored
     if restored_documents == 0:
